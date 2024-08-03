@@ -155,10 +155,66 @@ if __name__ =='__main__':
         checkpoint_path = os.path.join(settings.CHECKPOINT_PATH, args.net, settings.TIME_NOW)
 
 # use tensorboard
+    if not os.path.exists(settings.LOG_DIR):
+        os.mkdir(settings.LOG_DIR)
+        
+# 因为tensorboard不能直接覆盖旧的值
+# 所以只能创建一个新的tensorboard文件
+    writer = SummaryWriter(log_dir=os.path.join(
+        settings.LOG_DIR, args.net, settings.TIME_NOW))
+    input_tensor = torch.Tensor(1, 3 , 32, 32)
+    if args.gpu:
+        input_tensor = input_tensor.cuda()
+    writer.add_graph(net, input_tensor)
 
+# 创建checkpoint文件来保存模型训练权重
+    if not os.path.exists(checkpoint_path):
+        os.makedirs(checkpoint_path)
+    checkpoint_path = os.path.join(checkpoint_path, '{net}-{epoch}-{type}.pth')
 
-    writer = SummaryWriter(log_dir=os.path.join(settings.LOG_DIR, args.net, settings.TIME_NOW))
+    best_acc = 0.0
+    if args.resume:
+        best_weights = best_acc_weights(os.path.join(settings.CHECKPOINT_PATH, args.net, recent_folder))
+        if best_weights:
+            weights_path = os.path.join(settings.CHECKPOINT_PATH, args.net, recent_folder, best_weights)
+            print('Loading weights file {}...'.format(weights_path))
+            print('load best training file to test acc...')
+            net.load_state_dict(torch.load(weights_path))
+            best_acc = eval_training(tb = False)
+            print('best acc: {:.2f}%'.format(best_acc))
 
+        recent_weights_file = most_recent_weights(os.path.join(settings.CHECKPOINT_PATH, args.net, recent_folder))
+        if not recent_weights_file:
+            raise Exception('NO recent weights file was found')
+        weights_path = os.path.join(settings.CHECKPOINT_PATH, args.net, recent_folder, recent_weights_file)
+        print('loading weights file {} to resume training...'.format(weights_path))
+        net.load_state_dict(torch.load(weights_path))
+
+        resume_epoch = last_epoch(os.path.join(settings.CHECKPOINT_PATH, args.net, recent_folder))
+
+    for epoch in range(1, settings.EPOCH + 1):
+        if epoch > args.warm:
+            train_schedule.step(epoch)
+
+        if args.resume:
+            if epoch <= resume_epoch:
+                continue
+
+        train(epoch)
+        acc = eval_training(epoch)        
+
+        # 学习率衰减到0.01之后开始保存最佳性能模型
+        if epoch > settings.MILESTONES[1] and best_acc < acc:
+            weights_path = checkpoint_path.format(net=args.net, epoch=epoch, type='best')
+            print('saving weights file to {}'.format(weights_path))
+            torch.save(net.state_dict(), weights_path)
+            best_acc = acc
+            continue
+
+        if not epoch % settings.SAVE_EPOCH:
+            weights_path = checkpoint_path.format(net=args.net, epoch=epoch, type='regular')
+            print('saving weights file to {}'.format(weights_path))
+            torch.save(net.state_dict(), weights_path)
 
 
     writer.close()

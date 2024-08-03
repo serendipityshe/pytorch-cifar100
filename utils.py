@@ -132,9 +132,12 @@ class WarmUpLR(_LRScheduler):
     
 
 def most_recent_folder(net_weights, fmt):
-    '''
-    获取net_weights文件夹下最新的文件名
+    '''获取net_weights文件夹下最新的文件名
     如果文件夹下为空则返回空文件夹
+    Args:
+        net_weights: net_weights文件夹
+        fmt: 文件名格式
+    Returns: latest folder: 最新文件夹
     '''
    # 获取net_weights文件夹下的所有文件夹
     folders = os.listdir(net_weights)

@@ -84,6 +84,18 @@ class ResNet(nn.Module):
         
         return nn.Sequential(*layers)
     
+    def forward(self, x):
+        output = self.conv1(x)
+        output = self.conv2_x(output)
+        output = self.conv3_x(output)
+        output = self.conv4_x(output)
+        output = self.conv5_x(output)
+        output = self.avg_pool(output)
+        output = output.view(output.size(0), -1)
+        output = self.fc(output)
+
+        return output
+    
 def resnet18():
     return ResNet(BasicBlock, [2, 2, 2, 2])
 
